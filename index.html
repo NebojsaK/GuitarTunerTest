@@ -818,6 +818,12 @@
     let renderedTargetsSignature = "";
     let renderedHighlightFullName = "";
     let targetButtons = new Map();
+    let lockedTargetFullName = "";
+    let pendingLockFullName = "";
+    let pendingLockCount = 0;
+    const DECAY_SIGNAL_RMS = 0.022;
+    const STRONG_SIGNAL_RMS = 0.032;
+    const LOCK_SWITCH_FRAMES = 3;
 
     function buildNoteTable(a4 = 440) {
       const table = [];
@@ -858,23 +864,35 @@
       return getActiveTargets().find(note => note.fullName === selectedTargetFullName) || null;
     }
 
+    function getLockedTarget() {
+      if (!lockedTargetFullName) {
+        return null;
+      }
+
+      return getActiveTargets().find(note => note.fullName === lockedTargetFullName) || null;
+    }
+
     function ensureSelectedTargetIsValid() {
       if (selectedTargetFullName && !getSelectedTarget()) {
         selectedTargetFullName = "";
       }
+
+      if (lockedTargetFullName && !getLockedTarget()) {
+        lockedTargetFullName = "";
+        pendingLockFullName = "";
+        pendingLockCount = 0;
+      }
     }
 
-    function closestTarget(frequency) {
-      const selectedTarget = getSelectedTarget();
-
-      if (selectedTarget) {
-        return selectedTarget;
-      }
-
+    function nearestTarget(frequency) {
       return getActiveTargets().reduce((best, note) => {
         const distance = Math.abs(1200 * Math.log2(frequency / note.frequency));
         return !best || distance < best.distance ? { ...note, distance } : best;
       }, null);
+    }
+
+    function closestTarget(frequency) {
+      return getSelectedTarget() || getLockedTarget() || nearestTarget(frequency);
     }
 
     function centsOff(frequency, targetFrequency) {
@@ -921,6 +939,9 @@
 
     function selectTarget(fullName) {
       selectedTargetFullName = fullName;
+      lockedTargetFullName = "";
+      pendingLockFullName = "";
+      pendingLockCount = 0;
       const target = getSelectedTarget();
 
       renderTargets(target ? target.fullName : "");
@@ -964,6 +985,9 @@
     function resetReadout(text = "Listening") {
       ensureSelectedTargetIsValid();
       lastDetectedFrequency = null;
+      lockedTargetFullName = "";
+      pendingLockFullName = "";
+      pendingLockCount = 0;
       frequencyNumberEl.textContent = "--";
       closestNoteEl.textContent = "--";
       centsEl.textContent = "--";
@@ -1056,11 +1080,52 @@
       const offset = denominator ? 0.5 * (previous - next) / denominator : 0;
       const refinedLag = bestLag + offset;
 
-      return sampleRate / refinedLag;
+      return {
+        frequency: sampleRate / refinedLag,
+        rms
+      };
     }
 
-    function updateReadout(frequency) {
+    function updateReadout(detection) {
+      const frequency = detection.frequency;
       lastDetectedFrequency = frequency;
+      const selectedTarget = getSelectedTarget();
+      const nearest = nearestTarget(frequency);
+
+      if (!selectedTarget && nearest) {
+        const lockedTarget = getLockedTarget();
+
+        if (!lockedTarget) {
+          lockedTargetFullName = nearest.fullName;
+          pendingLockFullName = "";
+          pendingLockCount = 0;
+        } else if (nearest.fullName !== lockedTarget.fullName && detection.rms >= STRONG_SIGNAL_RMS) {
+          const lockedDistance = Math.abs(centsOff(frequency, lockedTarget.frequency));
+          const nearestDistance = Math.abs(centsOff(frequency, nearest.frequency));
+
+          if (nearestDistance + 35 < lockedDistance) {
+            if (pendingLockFullName === nearest.fullName) {
+              pendingLockCount += 1;
+            } else {
+              pendingLockFullName = nearest.fullName;
+              pendingLockCount = 1;
+            }
+
+            if (pendingLockCount >= LOCK_SWITCH_FRAMES) {
+              lockedTargetFullName = nearest.fullName;
+              pendingLockFullName = "";
+              pendingLockCount = 0;
+            }
+          } else {
+            pendingLockFullName = "";
+            pendingLockCount = 0;
+          }
+        } else if (detection.rms >= DECAY_SIGNAL_RMS) {
+          pendingLockFullName = "";
+          pendingLockCount = 0;
+        }
+      }
+
       const target = closestTarget(frequency);
 
       if (!target) {
@@ -1145,6 +1210,9 @@
     startButton.addEventListener("click", startMicrophone);
     presetSelect.addEventListener("change", () => {
       selectedTargetFullName = "";
+      lockedTargetFullName = "";
+      pendingLockFullName = "";
+      pendingLockCount = 0;
       resetReadout(audioContext ? "Listening" : "Waiting");
     });
     calibrationInput.addEventListener("input", rebuildCalibration);
