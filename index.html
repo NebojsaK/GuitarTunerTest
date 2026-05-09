@@ -677,10 +677,15 @@
     let audioContext;
     let analyser;
     let inputBuffer;
+    let clippedBuffer;
+    let correlationBuffer;
     let noteTable = [];
     let rafId = null;
     let selectedTargetFullName = "";
     let lastDetectedFrequency = null;
+    let renderedTargetsSignature = "";
+    let renderedHighlightFullName = "";
+    let targetButtons = new Map();
 
     function buildNoteTable(a4 = 440) {
       const table = [];
@@ -748,8 +753,24 @@
       const targets = getActiveTargets();
       const selectedTarget = getSelectedTarget();
       const highlightedFullName = selectedTarget ? selectedTarget.fullName : activeFullName;
+      const targetsSignature = targets.map(note => note.fullName).join("|");
 
-      stringsEl.innerHTML = "";
+      if (targetsSignature === renderedTargetsSignature) {
+        if (highlightedFullName === renderedHighlightFullName) {
+          return;
+        }
+
+        targetButtons.forEach((button, fullName) => {
+          const isActive = fullName === highlightedFullName;
+          button.classList.toggle("active", isActive);
+          button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+        renderedHighlightFullName = highlightedFullName;
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      targetButtons = new Map();
       targets.forEach(note => {
         const button = document.createElement("button");
         button.className = `string-pill${note.fullName === highlightedFullName ? " active" : ""}`;
@@ -757,8 +778,13 @@
         button.textContent = note.fullName;
         button.setAttribute("aria-pressed", note.fullName === highlightedFullName ? "true" : "false");
         button.addEventListener("click", () => selectTarget(note.fullName));
-        stringsEl.appendChild(button);
+        targetButtons.set(note.fullName, button);
+        fragment.appendChild(button);
       });
+
+      stringsEl.replaceChildren(fragment);
+      renderedTargetsSignature = targetsSignature;
+      renderedHighlightFullName = highlightedFullName;
     }
 
     function selectTarget(fullName) {
@@ -854,7 +880,7 @@
       const maxFrequency = 1600;
       const minLag = Math.floor(sampleRate / maxFrequency);
       const maxLag = Math.min(Math.floor(sampleRate / minFrequency), buffer.length - 1);
-      const clipped = new Float32Array(buffer.length);
+      const clipped = clippedBuffer && clippedBuffer.length === buffer.length ? clippedBuffer : new Float32Array(buffer.length);
       const clipLevel = rms * 0.35;
 
       for (let i = 0; i < buffer.length; i += 1) {
@@ -864,7 +890,7 @@
 
       let bestLag = -1;
       let bestCorrelation = 0;
-      const correlations = new Float32Array(maxLag + 1);
+      const correlations = correlationBuffer && correlationBuffer.length > maxLag ? correlationBuffer : new Float32Array(maxLag + 1);
 
       for (let lag = minLag; lag <= maxLag; lag += 1) {
         let correlation = 0;
@@ -950,9 +976,12 @@
 
         const source = audioContext.createMediaStreamSource(stream);
         analyser = audioContext.createAnalyser();
-        analyser.fftSize = 4096;
+        const mobileAudioDevice = window.matchMedia("(pointer: coarse)").matches || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        analyser.fftSize = mobileAudioDevice ? 2048 : 4096;
         analyser.smoothingTimeConstant = 0;
         inputBuffer = new Float32Array(analyser.fftSize);
+        clippedBuffer = new Float32Array(analyser.fftSize);
+        correlationBuffer = new Float32Array(analyser.fftSize);
         source.connect(analyser);
 
         startButton.textContent = "Microphone On";
