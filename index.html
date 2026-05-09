@@ -118,7 +118,7 @@
     }
 
     .metric {
-      min-height: 98px;
+      min-height: 74px;
       padding: 16px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -142,6 +142,25 @@
       overflow-wrap: anywhere;
     }
 
+    .frequency-value {
+      min-height: 1.65em;
+    }
+
+    .frequency-value .number {
+      color: var(--text);
+      font-size: 0.76em;
+    }
+
+    .frequency-value .unit {
+      display: block;
+      margin-top: 3px;
+      color: var(--text);
+      font-size: 0.41em;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
     .note-stage {
       display: grid;
       grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -161,14 +180,14 @@
     }
 
     .note {
-      font-size: clamp(5rem, 15vw, 11rem);
+      font-size: clamp(3.5rem, 10.5vw, 7.7rem);
       line-height: 0.88;
       font-weight: 900;
     }
 
     .octave {
       color: var(--blue);
-      font-size: clamp(2rem, 5vw, 4rem);
+      font-size: clamp(1.4rem, 3.5vw, 2.8rem);
       font-weight: 900;
       margin-left: 6px;
     }
@@ -313,6 +332,7 @@
       border-radius: 8px;
       background: #121821;
       color: var(--muted);
+      cursor: pointer;
       font-weight: 800;
       touch-action: manipulation;
     }
@@ -405,7 +425,7 @@
       }
 
       .metric {
-        min-height: 74px;
+        min-height: 56px;
         padding: 12px;
       }
 
@@ -428,11 +448,11 @@
       }
 
       .note {
-        font-size: clamp(4.2rem, 26vw, 7rem);
+        font-size: clamp(2.95rem, 18.2vw, 4.9rem);
       }
 
       .octave {
-        font-size: clamp(1.9rem, 11vw, 3rem);
+        font-size: clamp(1.35rem, 7.7vw, 2.1rem);
       }
 
       .meter-labels,
@@ -559,7 +579,7 @@
         <div class="readout" aria-live="polite">
           <div class="metric">
             <span>Frequency</span>
-            <strong id="frequency">-- Hz</strong>
+            <strong class="frequency-value" id="frequency"><span class="number">--</span><span class="unit">Hz</span></strong>
           </div>
           <div class="metric">
             <span>Closest Note</span>
@@ -659,6 +679,8 @@
     let inputBuffer;
     let noteTable = [];
     let rafId = null;
+    let selectedTargetFullName = "";
+    let lastDetectedFrequency = null;
 
     function buildNoteTable(a4 = 440) {
       const table = [];
@@ -691,7 +713,27 @@
       return noteTable.filter(note => wanted.has(note.fullName));
     }
 
+    function getSelectedTarget() {
+      if (!selectedTargetFullName) {
+        return null;
+      }
+
+      return getActiveTargets().find(note => note.fullName === selectedTargetFullName) || null;
+    }
+
+    function ensureSelectedTargetIsValid() {
+      if (selectedTargetFullName && !getSelectedTarget()) {
+        selectedTargetFullName = "";
+      }
+    }
+
     function closestTarget(frequency) {
+      const selectedTarget = getSelectedTarget();
+
+      if (selectedTarget) {
+        return selectedTarget;
+      }
+
       return getActiveTargets().reduce((best, note) => {
         const distance = Math.abs(1200 * Math.log2(frequency / note.frequency));
         return !best || distance < best.distance ? { ...note, distance } : best;
@@ -704,15 +746,39 @@
 
     function renderTargets(activeFullName = "") {
       const targets = getActiveTargets();
+      const selectedTarget = getSelectedTarget();
+      const highlightedFullName = selectedTarget ? selectedTarget.fullName : activeFullName;
 
       stringsEl.innerHTML = "";
       targets.forEach(note => {
         const button = document.createElement("button");
-        button.className = `string-pill${note.fullName === activeFullName ? " active" : ""}`;
+        button.className = `string-pill${note.fullName === highlightedFullName ? " active" : ""}`;
         button.type = "button";
         button.textContent = note.fullName;
+        button.setAttribute("aria-pressed", note.fullName === highlightedFullName ? "true" : "false");
+        button.addEventListener("click", () => selectTarget(note.fullName));
         stringsEl.appendChild(button);
       });
+    }
+
+    function selectTarget(fullName) {
+      selectedTargetFullName = fullName;
+      const target = getSelectedTarget();
+
+      renderTargets(target ? target.fullName : "");
+
+      if (lastDetectedFrequency) {
+        updateReadout(lastDetectedFrequency);
+        return;
+      }
+
+      if (target) {
+        closestNoteEl.textContent = target.fullName;
+        noteNameEl.textContent = target.name;
+        octaveEl.textContent = target.octave;
+        statusEl.textContent = "Target Set";
+        statusEl.className = "status";
+      }
     }
 
     function setStatus(cents) {
@@ -738,7 +804,9 @@
     }
 
     function resetReadout(text = "Listening") {
-      frequencyEl.textContent = "-- Hz";
+      ensureSelectedTargetIsValid();
+      lastDetectedFrequency = null;
+      frequencyEl.innerHTML = '<span class="number">--</span><span class="unit">Hz</span>';
       closestNoteEl.textContent = "--";
       centsEl.textContent = "--";
       noteNameEl.textContent = "--";
@@ -747,7 +815,7 @@
       statusEl.textContent = text;
       statusEl.className = "status";
       activityBar.style.width = "0%";
-      renderTargets();
+      renderTargets(selectedTargetFullName);
     }
 
     /*
@@ -834,6 +902,7 @@
     }
 
     function updateReadout(frequency) {
+      lastDetectedFrequency = frequency;
       const target = closestTarget(frequency);
 
       if (!target) {
@@ -844,7 +913,7 @@
       const clampedCents = Math.max(-50, Math.min(50, cents));
       const angle = (clampedCents / 50) * 42;
 
-      frequencyEl.textContent = `${frequency.toFixed(2)} Hz`;
+      frequencyEl.innerHTML = `<span class="number">${frequency.toFixed(2)}</span><span class="unit">Hz</span>`;
       closestNoteEl.textContent = target.fullName;
       centsEl.textContent = `${cents >= 0 ? "+" : ""}${cents.toFixed(1)}`;
       noteNameEl.textContent = target.name;
@@ -911,7 +980,10 @@
     }
 
     startButton.addEventListener("click", startMicrophone);
-    presetSelect.addEventListener("change", () => resetReadout(audioContext ? "Listening" : "Waiting"));
+    presetSelect.addEventListener("change", () => {
+      selectedTargetFullName = "";
+      resetReadout(audioContext ? "Listening" : "Waiting");
+    });
     calibrationInput.addEventListener("input", rebuildCalibration);
 
     rebuildCalibration();
