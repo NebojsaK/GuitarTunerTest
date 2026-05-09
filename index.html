@@ -821,9 +821,11 @@
     let lockedTargetFullName = "";
     let pendingLockFullName = "";
     let pendingLockCount = 0;
+    let noPitchFrames = 0;
     const DECAY_SIGNAL_RMS = 0.022;
-    const STRONG_SIGNAL_RMS = 0.032;
-    const LOCK_SWITCH_FRAMES = 3;
+    const SWITCH_SIGNAL_RMS = 0.016;
+    const LOCK_SWITCH_FRAMES = 2;
+    const CLEAR_LOCK_AFTER_MISSES = 10;
 
     function buildNoteTable(a4 = 440) {
       const table = [];
@@ -881,6 +883,7 @@
         lockedTargetFullName = "";
         pendingLockFullName = "";
         pendingLockCount = 0;
+        noPitchFrames = 0;
       }
     }
 
@@ -942,6 +945,7 @@
       lockedTargetFullName = "";
       pendingLockFullName = "";
       pendingLockCount = 0;
+      noPitchFrames = 0;
       const target = getSelectedTarget();
 
       renderTargets(target ? target.fullName : "");
@@ -988,6 +992,7 @@
       lockedTargetFullName = "";
       pendingLockFullName = "";
       pendingLockCount = 0;
+      noPitchFrames = 0;
       frequencyNumberEl.textContent = "--";
       closestNoteEl.textContent = "--";
       centsEl.textContent = "--";
@@ -1088,6 +1093,7 @@
 
     function updateReadout(detection) {
       const frequency = detection.frequency;
+      noPitchFrames = 0;
       lastDetectedFrequency = frequency;
       const selectedTarget = getSelectedTarget();
       const nearest = nearestTarget(frequency);
@@ -1099,11 +1105,11 @@
           lockedTargetFullName = nearest.fullName;
           pendingLockFullName = "";
           pendingLockCount = 0;
-        } else if (nearest.fullName !== lockedTarget.fullName && detection.rms >= STRONG_SIGNAL_RMS) {
+        } else if (nearest.fullName !== lockedTarget.fullName && detection.rms >= SWITCH_SIGNAL_RMS) {
           const lockedDistance = Math.abs(centsOff(frequency, lockedTarget.frequency));
           const nearestDistance = Math.abs(centsOff(frequency, nearest.frequency));
 
-          if (nearestDistance + 35 < lockedDistance) {
+          if (nearestDistance <= 35 && lockedDistance >= 55) {
             if (pendingLockFullName === nearest.fullName) {
               pendingLockCount += 1;
             } else {
@@ -1152,6 +1158,15 @@
 
       if (frequency) {
         updateReadout(frequency);
+      } else if (!selectedTargetFullName && lockedTargetFullName) {
+        noPitchFrames += 1;
+
+        if (noPitchFrames >= CLEAR_LOCK_AFTER_MISSES) {
+          lockedTargetFullName = "";
+          pendingLockFullName = "";
+          pendingLockCount = 0;
+          noPitchFrames = 0;
+        }
       }
 
       rafId = requestAnimationFrame(listen);
@@ -1213,6 +1228,7 @@
       lockedTargetFullName = "";
       pendingLockFullName = "";
       pendingLockCount = 0;
+      noPitchFrames = 0;
       resetReadout(audioContext ? "Listening" : "Waiting");
     });
     calibrationInput.addEventListener("input", rebuildCalibration);
