@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>String Instrument Tuner</title>
+  <title>Universal String Instrument Tuner</title>
   <style>
     :root {
       color-scheme: dark;
@@ -27,11 +27,13 @@
 
     body {
       min-height: 100vh;
+      min-height: 100svh;
       margin: 0;
       background:
         radial-gradient(circle at 20% 0%, rgba(101, 167, 255, 0.16), transparent 32rem),
         linear-gradient(145deg, #101318 0%, #171a1d 50%, #141719 100%);
       color: var(--text);
+      -webkit-text-size-adjust: 100%;
     }
 
     button,
@@ -82,6 +84,7 @@
       cursor: pointer;
       font-weight: 800;
       box-shadow: 0 12px 28px rgba(63, 209, 138, 0.22);
+      touch-action: manipulation;
     }
 
     .start:disabled {
@@ -288,6 +291,7 @@
       color: var(--text);
       padding: 0 12px;
       outline: none;
+      font-size: 16px;
     }
 
     .field select:focus,
@@ -310,6 +314,7 @@
       background: #121821;
       color: var(--muted);
       font-weight: 800;
+      touch-action: manipulation;
     }
 
     .string-pill.active {
@@ -357,6 +362,184 @@
 
       .note-block {
         min-height: 170px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 20px, 1120px);
+        padding: 16px 0 22px;
+      }
+
+      header {
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        font-size: clamp(2.25rem, 14vw, 3.8rem);
+      }
+
+      .subtitle {
+        margin-top: 8px;
+        font-size: 0.95rem;
+        line-height: 1.42;
+      }
+
+      .start {
+        min-height: 52px;
+        font-size: 1rem;
+      }
+
+      .layout {
+        gap: 12px;
+      }
+
+      .tuner {
+        padding: 14px;
+      }
+
+      .readout {
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .metric {
+        min-height: 74px;
+        padding: 12px;
+      }
+
+      .metric span {
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+      }
+
+      .metric strong {
+        margin-top: 7px;
+        font-size: clamp(1.25rem, 9vw, 2.05rem);
+      }
+
+      .note-stage {
+        gap: 14px;
+      }
+
+      .note-block {
+        min-height: 132px;
+      }
+
+      .note {
+        font-size: clamp(4.2rem, 26vw, 7rem);
+      }
+
+      .octave {
+        font-size: clamp(1.9rem, 11vw, 3rem);
+      }
+
+      .meter-labels,
+      .meter-ticks {
+        font-size: 0.72rem;
+      }
+
+      .meter {
+        height: 86px;
+        margin: 9px 0;
+      }
+
+      .needle {
+        height: 64px;
+        bottom: 12px;
+      }
+
+      .pivot {
+        width: 16px;
+        height: 16px;
+      }
+
+      .status {
+        min-height: 40px;
+        font-size: 0.88rem;
+        letter-spacing: 0.06em;
+      }
+
+      .controls {
+        padding: 14px;
+      }
+
+      .field {
+        margin-bottom: 13px;
+      }
+
+      .field label {
+        margin-bottom: 7px;
+        font-size: 0.72rem;
+      }
+
+      .field select,
+      .field input {
+        min-height: 48px;
+      }
+
+      .strings {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+      }
+
+      .string-pill {
+        min-height: 42px;
+        font-size: 0.92rem;
+      }
+
+      .hint {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .app {
+        width: min(100% - 14px, 1120px);
+      }
+
+      .tuner,
+      .controls {
+        padding: 10px;
+      }
+
+      .metric {
+        padding: 10px;
+      }
+
+      .strings {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-height: 520px) and (orientation: landscape) {
+      .app {
+        padding-top: 12px;
+      }
+
+      header {
+        margin-bottom: 12px;
+      }
+
+      .subtitle {
+        display: none;
+      }
+
+      .note-stage {
+        grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1.3fr);
+      }
+
+      .note-block {
+        min-height: 120px;
+      }
+
+      .meter {
+        height: 78px;
+      }
+
+      .needle {
+        height: 58px;
       }
     }
   </style>
