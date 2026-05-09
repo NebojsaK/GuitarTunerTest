@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal String Instrument Tuner</title>
+  <title>Mobile Instrument Tuner</title>
   <style>
     :root {
       color-scheme: dark;
@@ -238,7 +238,8 @@
       border-radius: 99px;
       background: var(--text);
       box-shadow: 0 0 20px rgba(255, 255, 255, 0.32);
-      transition: transform 90ms linear, background 120ms ease;
+      transition: background 80ms ease;
+      will-change: transform;
     }
 
     .pivot {
@@ -562,6 +563,136 @@
         height: 58px;
       }
     }
+
+    /* Mobile-only layout: this file is intended for HTTPS use on phones and tablets. */
+    .app {
+      width: min(100% - 18px, 620px);
+      padding: 14px 0 20px;
+    }
+
+    header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 13vw, 4.25rem);
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      font-size: 0.94rem;
+      line-height: 1.42;
+    }
+
+    .start {
+      width: 100%;
+      min-height: 54px;
+      font-size: 1.02rem;
+    }
+
+    .layout,
+    .note-stage {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .tuner,
+    .controls {
+      padding: 12px;
+    }
+
+    .readout {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      min-height: 58px;
+      padding: 10px;
+    }
+
+    .metric span {
+      font-size: 0.62rem;
+      letter-spacing: 0.04em;
+    }
+
+    .metric strong {
+      margin-top: 6px;
+      font-size: clamp(1rem, 6.6vw, 1.55rem);
+    }
+
+    .frequency-value {
+      min-height: 1.55em;
+    }
+
+    .note-block {
+      min-height: 132px;
+    }
+
+    .note {
+      font-size: clamp(2.95rem, 18vw, 5rem);
+    }
+
+    .octave {
+      font-size: clamp(1.35rem, 7vw, 2.15rem);
+    }
+
+    .meter {
+      height: 88px;
+      margin: 8px 0;
+    }
+
+    .needle {
+      height: 66px;
+      bottom: 11px;
+    }
+
+    .status {
+      min-height: 42px;
+      font-size: 0.88rem;
+      letter-spacing: 0.06em;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field select,
+    .field input {
+      min-height: 50px;
+    }
+
+    .strings {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .string-pill {
+      min-height: 44px;
+      font-size: 0.94rem;
+    }
+
+    @media (max-width: 360px) {
+      .app {
+        width: min(100% - 12px, 620px);
+      }
+
+      .readout {
+        grid-template-columns: 1fr;
+      }
+
+      .metric {
+        min-height: 52px;
+      }
+
+      .strings {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   </style>
 </head>
 <body>
@@ -665,6 +796,7 @@
     const calibrationInput = document.getElementById("calibration");
     const stringsEl = document.getElementById("strings");
     const frequencyEl = document.getElementById("frequency");
+    const frequencyNumberEl = frequencyEl.querySelector(".number");
     const closestNoteEl = document.getElementById("closestNote");
     const centsEl = document.getElementById("cents");
     const noteNameEl = document.getElementById("noteName");
@@ -832,7 +964,7 @@
     function resetReadout(text = "Listening") {
       ensureSelectedTargetIsValid();
       lastDetectedFrequency = null;
-      frequencyEl.innerHTML = '<span class="number">--</span><span class="unit">Hz</span>';
+      frequencyNumberEl.textContent = "--";
       closestNoteEl.textContent = "--";
       centsEl.textContent = "--";
       noteNameEl.textContent = "--";
@@ -939,7 +1071,7 @@
       const clampedCents = Math.max(-50, Math.min(50, cents));
       const angle = (clampedCents / 50) * 42;
 
-      frequencyEl.innerHTML = `<span class="number">${frequency.toFixed(2)}</span><span class="unit">Hz</span>`;
+      frequencyNumberEl.textContent = frequency.toFixed(2);
       closestNoteEl.textContent = target.fullName;
       centsEl.textContent = `${cents >= 0 ? "+" : ""}${cents.toFixed(1)}`;
       noteNameEl.textContent = target.name;
@@ -966,6 +1098,9 @@
         startButton.textContent = "Starting...";
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") {
+          await audioContext.resume();
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: false,
@@ -976,8 +1111,7 @@
 
         const source = audioContext.createMediaStreamSource(stream);
         analyser = audioContext.createAnalyser();
-        const mobileAudioDevice = window.matchMedia("(pointer: coarse)").matches || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        analyser.fftSize = mobileAudioDevice ? 2048 : 4096;
+        analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0;
         inputBuffer = new Float32Array(analyser.fftSize);
         clippedBuffer = new Float32Array(analyser.fftSize);
